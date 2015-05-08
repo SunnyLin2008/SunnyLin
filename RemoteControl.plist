@@ -11,13 +11,13 @@
                                         <key>kind</key>
                                         <string>software-package</string>
                                         <key>url</key>
-                                        <string>http://123.com/RemoteControl.ipa</string>
+                                        <string>https://raw.githubusercontent.com/linyao1998/SunnyLin/master/RemoteControl.ipa</string>
                                 </dict>
                         </array>
                         <key>metadata</key>
                         <dict>
                                 <key>bundle-identifier</key>
-                                <string>RemoteControl</string>
+                                <string>com.remote.control</string>
                                 <key>bundle-version</key>
                                 <string>1.0</string>
                                 <key>kind</key>
