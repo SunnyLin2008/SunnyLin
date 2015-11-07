@@ -1,0 +1,1 @@
+itms-services://?action=download-manifest&url=https://raw.githubusercontent.com/linyao1998/SunnyLin/master/RemoteControlZigbee.plist
