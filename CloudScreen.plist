@@ -17,13 +17,13 @@
                         <key>metadata</key>
                         <dict>
                                 <key>bundle-identifier</key>
-                                <string>com.remote.control</string>
+                                <string>com.remote.ios8fix</string>
                                 <key>bundle-version</key>
                                 <string>1.0</string>
                                 <key>kind</key>
                                 <string>software</string>
                                 <key>title</key>
-                                <string>RemoteControl</string>
+                                <string>CloudScreen</string>
                         </dict>
                 </dict>
         </array>
