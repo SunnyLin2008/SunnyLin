@@ -1,0 +1,237 @@
+// MARK: ViewController/Base/BaseViewController.swift
+
+/**
+ + StoryboardのInitialViewControllerマークプロトコル
+ */
+protocol StoryboardInitialMark {
+    /// Storyboardのファイル名
+    ///   1. InitialViewControllerに定義されているファイル名
+    static var STORYBOARD_NAME: String { get }
+}
+
+/**
+ + このプロジェクトの基底ViewController
+ */
+class BaseViewController: UIViewController {
+    
+    // MARK : Properties
+    /// 監視するのテキストフィルド
+    var keyboardObserverTextFields: [UITextField]?
+    /// 全てのテキストフィルドを監視するか(例えばTabelViewにTextField動的表示する場合も監視します),デフォルトはfalse
+    var isObserverAllTextFields = false
+    /// ViewControllerにテキストフィルドが元々あるの場合監視るす(例えばStoryBoardに最初から入れたテキストフィルドがあるの場合)、デフォルトはtrue
+    var isObserverAllTextFieldsWhileHasAnyStaictTextField = true
+    /// このViewControllerは他のViewControllerの傘下にいるかどうか
+    var isEmbed = true
+    /// キーボードつい最近の範囲を持っているプロパティ
+    var lastKeyboardFrameEnd: CGRect?
+    /// テキストフィルドを入力する時、キーボードの高さによってViewを調整する監視は必要か
+    var needToObserverTextFields: Bool {
+        get {
+            if isObserverAllTextFields || keyboardObserverTextFields != nil {
+                return true
+            } else {
+                if isObserverAllTextFieldsWhileHasAnyStaictTextField && isAnyTypeViewInSubViews(subViews: view.subviews, type: UITextField.self) {
+                    return true
+                }
+                return false
+            }
+        }
+    }
+    
+    // MARK: Methods
+    /// 画面が描画された後に呼ばれるメソッド
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        if needToObserverTextFields {
+            // キーボード表示範囲変化イベントを監視する
+            NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChangeFrame(notification:)), name: .UIKeyboardWillChangeFrame, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(keyboardDidChangeFrame(notification:)), name: .UIKeyboardDidChangeFrame, object: nil)
+            // キーボードの閉じる動きを監視する
+            NotificationCenter.default.addObserver(self, selector: #selector(keyboardDidHide(notification:)), name: .UIKeyboardDidHide, object: nil)
+            // テキストフィールドのフォーカス変更を監視する
+            NotificationCenter.default.addObserver(self, selector: #selector(textFieldTextDidBeginEditing(notification:)), name: .UITextFieldTextDidBeginEditing, object: nil)
+        }
+    }
+    
+    
+    /// キーボードの表示範囲が変わる際のイベントの処理
+    ///
+    /// - Parameter notification: 通知内容
+    @objc func keyboardWillChangeFrame(notification: Notification) {
+        //キーボード目標の表示範囲を取る
+        if let keyboardFrameEnd = (notification.userInfo![UIKeyboardFrameEndUserInfoKey] as AnyObject).cgRectValue {
+            lastKeyboardFrameEnd = keyboardFrameEnd
+            adjustTextFieldFrameWithKeyboard(keyboardFrameEnd: keyboardFrameEnd, animationDuration: notification.userInfo?[UIKeyboardAnimationDurationUserInfoKey] as? Double)
+        }
+    }
+    
+    /// キーボードの表示範囲が変した時のイベントの処理
+    ///
+    /// - Parameter notification: 通知内容
+    @objc func keyboardDidChangeFrame(notification: Notification) {
+        if let keyboardFrameEnd = (notification.userInfo![UIKeyboardFrameEndUserInfoKey] as AnyObject).cgRectValue {
+            lastKeyboardFrameEnd = keyboardFrameEnd
+            adjustTextFieldFrameWithKeyboard(keyboardFrameEnd: keyboardFrameEnd, animationDuration: notification.userInfo?[UIKeyboardAnimationDurationUserInfoKey] as? Double)
+        }
+    }
+    
+    /// キーボードを閉じる際のエベントの処理
+    ///
+    /// - Parameter notification: 通知内容
+    @objc func keyboardDidHide(notification: Notification) {
+        lastKeyboardFrameEnd = nil
+    }
+    
+    /// テキストフィールドのフォーカス変更イベントの処理
+    ///
+    /// - Parameter notification: 通知内容
+    @objc func textFieldTextDidBeginEditing(notification: Notification) {
+        if let keyboardFrameEnd = lastKeyboardFrameEnd {
+            adjustTextFieldFrameWithKeyboard(keyboardFrameEnd: keyboardFrameEnd)
+        }
+    }
+    
+    /// テキストフィールドの位置をキーボードの表示範囲にあわせて調節する
+    ///
+    /// - Parameters:
+    ///   - keyboardFrameEnd: キーボードの表示範囲
+    ///   - animationDuration: 画面移動時のアニメション時間
+    func adjustTextFieldFrameWithKeyboard(keyboardFrameEnd: CGRect, animationDuration: Double? = nil) -> Void {
+        if let textField = findFirstResponder(self.view) as? UITextField {
+            // 入力中のテキストフィルドは指定の監視テキストフィルドの一つか？
+            if !needToObserverTextFields && !(keyboardObserverTextFields?.contains(textField))! {
+                return
+            }
+            // テキストフィルドはその親Windowの中のファレムを取得する
+            let textFieldFrame = textField.convert(textField.bounds, to: nil)
+            
+            // ViewControllerの一番外のビューのY軸移動値
+            let transformY = textFieldFrame.origin.y + textField.frame.height - keyboardFrameEnd.origin.y - (self.view.frame.origin.y - (self.navigationController?.navigationBar.intrinsicContentSize.height ?? 0) - (self.isEmbed ? 0 : UIApplication.shared.statusBarFrame.size.height)) + 80
+            // キーボードの表示範囲がテキストフィールドより上の場合にはViewControllerの一番外のビューを移動する
+            
+            let duration = animationDuration ?? 0.25
+            if !(keyboardFrameEnd.origin.y + keyboardFrameEnd.height < (self.view.window?.frame.height ?? 0)) && transformY > 0 {
+                UIView.animate(withDuration: duration, animations: {
+                    self.view.frame.origin.y = -transformY
+                })
+            } else { // キーボードの表示範囲がテキストフィールドより下の場合にはViewControllerの一番外のビューを初期値に戻る
+                UIView.animate(withDuration: duration, animations: {
+                    self.view.frame.origin.y = (self.isEmbed ? 0 : UIApplication.shared.statusBarFrame.size.height) + (self.navigationController?.navigationBar.intrinsicContentSize.height ?? 0)
+                })
+            }
+        }
+    }
+    
+    /// 親ビューの中にキーボードが使用中のビューを取得する
+    ///
+    /// - Parameter view: 親ビュー
+    /// - Returns: キーボードが使用中のビュー
+    func findFirstResponder(_ view: UIView) -> UIView? {
+        for subView in view.subviews {
+            if subView.isFirstResponder {
+                return subView
+            }
+            if let recursiveSubView = self.findFirstResponder(subView) {
+                return recursiveSubView
+            }
+        }
+        return nil
+    }
+    
+    /// 指定されたタイプのビューはSubViewsの中にあるかどうか
+    ///
+    /// - Parameters:
+    ///   - subViews: 検索されたのSubViews
+    ///   - type: ビューのタイプ
+    /// - Returns: 見つかった場合trueに戻ります
+    func isAnyTypeViewInSubViews<T : UIView>(subViews: [UIView], type: T.Type) -> Bool {
+        for subView in subViews {
+            if subView is T {
+                return true
+            }
+            if subView.subviews.count > 0 {
+                if isAnyTypeViewInSubViews(subViews: subView.subviews, type: type) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    
+    /// ViewControllerにある編集中のテキストフィールドの編集状態を取り消し
+    func resignFirstResponderWithAllTextField() {
+        if let textField = findFirstResponder(self.view) as? UITextField {
+            textField.resignFirstResponder()
+        }
+    }
+    
+    /// ViewControllerが破棄された時呼び出されるメソッド
+    deinit {
+        // ViewController deinitするとき、監視された対象が全て破棄します
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    
+    /// StoryBoardからViewControllerのインスタンスをとる
+    ///
+    /// - Parameters:
+    ///   - classType: 取得したいのViewControllerのクラスタイプ
+    ///   - storyBoardId: ViewControllerを持つのStroyBoardId
+    /// - Returns: StoryBoardにあるViewControllerのインスタンス
+    private func instantiateViewController<T : UIViewController>(classType: T.Type) -> T {
+        var storyboardName = ""
+        if let storyboardInitialMark = classType.init() as? StoryboardInitialMark {
+            storyboardName = type(of: storyboardInitialMark).STORYBOARD_NAME
+        } else {
+            let viewControllers = self.navigationController?.viewControllers
+            let count = viewControllers?.count ?? 0
+            for i in (0 ..< count).reversed() {
+                if let storyboardInitialMark = viewControllers![i] as? StoryboardInitialMark {
+                    storyboardName = type(of: storyboardInitialMark).STORYBOARD_NAME
+                    break
+                }
+            }
+        }
+        return UIStoryboard(name: storyboardName, bundle: Bundle.main).instantiateViewController(withIdentifier: classType.className()) as! T
+    }
+    
+    /// StoryBoardにあるViewControllerのインスタンスをpresentする
+    ///
+    /// - Parameters:
+    ///   - classType: ViewControllerのクラスタイプ
+    ///   - storyBoardId: ViewControllerを持つのStroyBoardId
+    ///   - prepare: pushしで前のViewControllerの処理
+    func presentViewController<T : UIViewController>(classType: T.Type, prepare: ((T) -> Void)? = nil) {
+        let viewController = instantiateViewController(classType: classType)
+        prepare?(viewController)
+        self.present(viewController, animated: true)
+    }
+    
+    /// StoryBoardにあるViewControllerのインスタンスをPushする
+    ///
+    /// - Parameters:
+    ///   - classType: ViewControllerのクラスタイプ
+    ///   - storyBoardId: ViewControllerを持つのStroyBoardId
+    ///   - prepare: pushしで前のViewControllerの処理
+    func pushViewController<T : UIViewController>(classType: T.Type, prepare: ((T) -> Void)? = nil) {
+        let viewController = instantiateViewController(classType: classType)
+        prepare?(viewController)
+        self.navigationController?.pushViewController(viewController, animated: true)
+    }
+    
+    /// 指定されたViewControllerまでに戻ります
+    ///
+    /// - Parameter classType: 指定されたのViewControlerのクラスタイプ
+    func popToViewController<T : UIViewController>(classType: T.Type) {
+        guard let viewControllers = self.navigationController?.viewControllers else {
+            return
+        }
+        for viewController in viewControllers {
+            if viewController is T {
+                self.navigationController?.popToViewController(viewController, animated: true)
+                return
+            }
+        }
+    }
+}
