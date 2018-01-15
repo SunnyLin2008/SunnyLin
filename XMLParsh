@@ -1,0 +1,196 @@
+import Foundation
+
+@objc
+class XMLInfo: NSObject {
+
+    var rootElementKey: String { get { return "" } }
+
+    required override init() {
+        super.init()
+    }
+
+    func parseXML(xml: String)throws -> Bool {
+        let xml = SWXMLHash.parse(xml)
+        let indexer = try xml.byKey(rootElementKey)
+        try parseXML(indexer: indexer)
+        return true
+    }
+
+    func parseXML(indexer: XMLIndexer) throws {
+        let maps = getMaps()
+        for map in maps {
+            let propertyName = map.getKey()
+            let object = map.getObject()
+            let value = try indexer.byKey(propertyName)
+            if let xmlInfos = object as? ParseXML {
+                print("--" + propertyName + "パースー開始---")
+                try xmlInfos.parseXML(indexer: value)
+                print("--" + propertyName + "パースー終了---")
+            } else {
+                let text = value.element?.text ?? ""
+                var keyValue: Any = text
+
+                // if type(of: object)  == Int.self {
+                if map.isSameType(type: Int(0)) {
+                    if let intValue = Int(text) {
+                        keyValue = intValue
+                    } else {
+                        throw IndexingError.key(key: propertyName)
+                    }
+                }
+                map.setObject(value: keyValue)
+                print(propertyName + " :  " + text)
+                if map.isTrap(value: keyValue) {
+                    return
+                }
+            }
+        }
+    }
+
+    func getMaps() -> [Map] {
+
+        return [Map]()
+    }
+}
+
+infix operator <-
+    public func <- <T>(left: inout T, right: String) {
+
+}
+
+
+protocol Map {
+    func getKey() -> String
+    func getObject() -> Any?
+    func isSameType(type: Any) -> Bool
+    func isTrap(value: Any) -> Bool
+    func setObject(value: Any) -> Void
+}
+
+class XMLMap<T : Any>: Map {
+
+    let object: T?
+    let key: String
+    let setValye: ((T) -> Void)?
+    let trap: ((T) -> Bool)?
+    init(key: String, setValye: ((T) -> Void)? = nil, object: T? = nil, trap: ((T) -> Bool)? = nil) {
+        self.object = object
+        self.key = key
+        self.setValye = setValye
+        self.trap = trap
+    }
+
+    func getKey() -> String {
+        return key
+    }
+
+    func getObject() -> Any? {
+        return object
+    }
+
+
+    func setObject(value: Any) {
+        setValye?(value as! T)
+    }
+
+    func isSameType(type: Any) -> Bool {
+        return type is T
+    }
+
+    func isTrap(value: Any) -> Bool {
+        return trap?(value as! T) ?? false
+    }
+}
+
+protocol ParseXML {
+    func parseXML(indexer: XMLIndexer) throws
+}
+
+
+class XMLInfos<T : XMLInfo>: NSObject, ParseXML {
+    var xmlInfos: [T] = [T]()
+    func parseXML(indexer: XMLIndexer) throws {
+        let childrens = indexer.children
+        for children in childrens {
+            print("childrenパーサー開始")
+            let xmlInfo = T()
+            try xmlInfo.parseXML(indexer: children)
+            xmlInfos.append(xmlInfo)
+        }
+    }
+}
+
+
+
+class BaseXMLInfo: XMLInfo {
+    override var rootElementKey: String {
+        return "response"
+    }
+    
+    enum EnumType: String {
+        case a = "A"
+        case b = "B"
+    }
+    
+    
+    var enumType: EnumType?
+
+    final override func getMaps() -> [Map] {
+        var maps : [Map] = [XMLMap(key: "statusCode", setValye: { value in self.enumType =  EnumType(rawValue: value)}, trap: { (value) in
+                return self.enumType != .a
+            })]
+        let fieldMaps = getFieldMaps()
+        fieldMaps.forEach { (map) in
+            maps.append(map)
+        }
+        return maps
+    }
+    
+    func getFieldMaps() -> [Map]  {
+        return [Map]()
+    }
+}
+
+class SampleInfo: BaseXMLInfo {
+
+    var objectA: Int = 0
+    var objectInfoList: XMLInfos<ObjectInfo> = XMLInfos<ObjectInfo>()
+
+    class ObjectInfo: XMLInfo {
+        var aInt: Int = 0
+        var bString: String = ""
+        var cBool: Bool = false
+        override func getMaps() -> [Map] {
+            return [XMLMap(key: "aInt", setValye: { value in self.aInt = value }),
+                XMLMap(key: "bString", setValye: { value in self.bString = value }),
+                XMLMap(key: "cBool", setValye: { value in self.cBool = value }))
+            ]
+        }
+    }
+
+    override func getFieldMaps() -> [Map] {
+        return [XMLMap(key: "objectA", setValye: { value in self.objectA = value }),
+            XMLMap(key: "objectInfoList", object: objectInfoList)
+        ]
+    }
+}
+
+class TestClass {
+    func test() {
+        let sampleInfo = SampleInfo()
+        guard let path: String = Bundle.main.path(forResource: "test", ofType: "xml") else {
+            return
+        }
+        do {
+            let xml = try String(contentsOfFile: path)
+            if try !sampleInfo.parseXML(xml: xml) {
+                print("正常終了ではありません")
+            } else {
+                print("正常終了です")
+            }
+        } catch {
+            print("パースが失敗しました \(error)")
+        }
+
+    }
+}
