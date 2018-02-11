@@ -76,29 +76,15 @@ class XMLInfos<T : XMLInfo> : NSObject, ParseXML {
 
 
 
-class PointBalanceInquiryResponseInfo :XMLInfo {
+class SampleInfo :XMLInfo {
     
-    /// 自治体サービス件数(String)
     var pointServiceCount : Int = 0
-        /// 自治体ポイントサービス一覧(String)
     var  pointServiceList : XMLInfos<PointInfo> = XMLInfos<PointInfo>()
 
     var supportEventCount : Int = 0
     
     var supportEventList : XMLInfos<PointInfo> = XMLInfos<PointInfo>()
     
-    class PointInfo :XMLInfo {
-        var pointServiceId : Int = 0
-        /// ポイントサービス名称(String)
-        var pointServiceName : String = ""
-        
-        /// ポイント残高(String)
-        var totalPoint : Int = 0
-        /// 地方公共団体コード(String)
-        var municipalityId : Int = 0
-        /// 自治体名称(String)
-        var municipalityName : String = ""
-    }
 }
 
 
